@@ -78,3 +78,95 @@ Any images you generate from maps that require attribution - which is most, incl
 
 * The [Mapbox Static Image API](https://www.mapbox.com/developers/api/static/) is simpler to use
   and faster than this approach.
+
+### Example Usage in `new_map.html`
+
+Here’s how to use `leaflet-image` in your HTML file:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Leaflet Image Example</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-image@latest/leaflet-image.js"></script>
+    <style>
+        #map { height: 400px; }
+        #images { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="images"></div>
+    <script>
+        var map = L.map('map').setView([38.9, -77.03], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // Add a marker
+        L.marker([38.9, -77.03]).addTo(map);
+        // Load GeoJSON from external file
+        fetch('150000.json')
+            .then(response => response.json())
+            .then(geoJsonData => {
+                // Create GeoJSON layer with custom style
+                const geoJsonLayer = L.geoJSON(geoJsonData, {
+                    style: {
+                        color: '#ff7800',
+                        weight: 2,
+                        opacity: 0.8,
+                        fillColor: '#ff7800',
+                        fillOpacity: 0.2,
+                        renderer: L.canvas()    // 使用 Canvas 渲染器而不是默认的 SVG
+                    },
+                    renderer: L.canvas(), // 确保使用 Canvas 渲染器
+                    onEachFeature: function (feature, layer) {
+                        console.log('layer3', layer)
+                        if (feature.properties && feature.properties.name) {
+                            layer.bindPopup(feature.properties.name);
+                        }
+                    }
+                });
+                console.log('geoJsonLayer', geoJsonLayer)
+                var fg = new L.featureGroup([geoJsonLayer]);
+                fg.addTo(map);
+
+                // Zoom to GeoJSON bounds
+                map.fitBounds(geoJsonLayer.getBounds());
+
+                // Optional: Add click event to the polygon
+                geoJsonLayer.on('click', function (e) {
+                    console.log('Polygon clicked');
+                });
+            })
+            .catch(error => {
+                console.error('Error loading GeoJSON:', error);
+            });
+        // Generate image from the map
+        leafletImage(map, function(err, canvas) {
+            if (err) {
+                console.error('Error generating image:', err);
+                return;
+            }
+            var img = document.createElement('img');
+            img.src = canvas.toDataURL();
+            document.getElementById('images').innerHTML = '';
+            document.getElementById('images').appendChild(img);
+        });
+    </script>
+</body>
+</html>
+```
+
+### API
+
+````javascript
+leafletImage(map, callback)
+````
+
+- `map` is a `L.map` or `L.mapbox.map`, 
+
+- `callback` takes `(err, canvas)`.
