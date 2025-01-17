@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Leaflet GeoJSON Map</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 100px;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .ui-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+
+<body>
+    <button id='snap' class='ui-button'>Take a snapshot</button>
+    <div id='map'></div>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+    <script src='leaflet-image.js'></script>
+    <script>
+        var map = L.map('map').setView([38.88995, 107.00906], 5);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Load GeoJSON from external file
+        fetch('150000.json')
+            .then(response => response.json())
+            .then(geoJsonData => {
+                // Create GeoJSON layer with custom style
+                const geoJsonLayer = L.geoJSON(geoJsonData, {
+                    style: {
+                        color: '#ff7800',
+                        weight: 2,
+                        opacity: 0.8,
+                        fillColor: '#ff7800',
+                        fillOpacity: 0.2,
+                        renderer: L.canvas()    // 使用 Canvas 渲染器而不是默认的 SVG
+                    },
+                    renderer: L.canvas(), // 确保使用 Canvas 渲染器
+                    onEachFeature: function (feature, layer) {
+                        console.log('layer3', layer)
+                        if (feature.properties && feature.properties.name) {
+                            layer.bindPopup(feature.properties.name);
+                        }
+                    }
+                });
+                console.log('geoJsonLayer', geoJsonLayer)
+                var fg = new L.featureGroup([geoJsonLayer]);
+                fg.addTo(map);
+
+                // Zoom to GeoJSON bounds
+                map.fitBounds(geoJsonLayer.getBounds());
+
+                // Optional: Add click event to the polygon
+                geoJsonLayer.on('click', function (e) {
+                    console.log('Polygon clicked');
+                });
+            })
+            .catch(error => {
+                console.error('Error loading GeoJSON:', error);
+            });
+
+        // Add heatmap data array
+        var heatmapData = [
+            [30.88995, 109.00906, 0.5], // [latitude, longitude, intensity]
+        ];
+
+        // Create and add heatmap layer
+        var heatLayer = L.heatLayer(heatmapData, {
+            radius: 25,
+            blur: 15,
+            maxZoom: 10,
+            max: 1.0,
+            gradient: {
+                0.4: 'blue',
+                0.6: 'lime',
+                0.8: 'yellow',
+                1.0: 'red'
+            }
+        }).addTo(map);
+
+        // Function to add point to heatmap
+        function addHeatmapPoint(lat, lng, intensity = 0.5) {
+            heatmapData.push([lat, lng, intensity]);
+            heatLayer.setLatLngs(heatmapData);
+        }
+
+        document.getElementById('snap').addEventListener('click', function () {
+            leafletImage(map, function (err, canvas) {
+                if (err) {
+                    console.error('Error generating image:', err);
+                    return;
+                }
+                canvas.toBlob(function (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "map_snapshot.png";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                });
+            });
+            // html2canvas(document.querySelector("#map"), {
+            //     useCORS: true, //保证跨域图片的显示，如果为不添加改属性，或者值为false,地图底图不显示
+            // }).then((canvas) => {
+            //     canvas.toBlob(function (blob) {
+            //     const url = URL.createObjectURL(blob);
+            //     const a = window.parent.document.createElement("a");
+            //     a.href = url;
+            //     a.download = "专题图.png";
+            //     window.parent.document.body.appendChild(a);
+            //     a.click();
+            //     });
+            // });
+        });
+
+        function createStarMarker(lng, lat, color, markerOptions = {}, eventHandler = null, pointData = null) {
+            const svgString = `<svg t="1726903261010" class="icon" viewBox="0 0 1024 1024" version="1.1" 
+                    xmlns="http://www.w3.org/2000/svg" fill="${color}" p-id="2479" 
+                    xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24">
+                    <g stroke="#515151" stroke-width="20">
+                        <path d="M512 179.13l82.631 254.28 267.369 0.01-216.3 157.163 82.613 254.286L512 687.723 295.688 844.869 378.3 590.583 162 433.419l267.369-0.009z" p-id="2480"></path>
+                    </g>
+                </svg>`;
+
+            const iconSize = 24;
+            // Convert SVG to base64
+            const base64Svg = 'data:image/svg+xml;base64,' + btoa(svgString);
+
+            const icon = L.icon({
+                iconUrl: base64Svg,
+                iconSize: [iconSize, iconSize],
+                iconAnchor: [iconSize / 2, iconSize / 2],
+            });
+
+            let marker = createMarker(lng, lat, markerOptions);
+            marker.setIcon(icon);
+            marker.state = '0';
+            marker.name = pointData?.point_name;
+
+            if (eventHandler) {
+                marker.on('click', (e) => {
+                    eventHandler('click', e, pointData, marker);
+                });
+            }
+
+            return marker;
+        }
+        function createMarker(lng, lat, options, iconOptions, beautifyIcon = false, popup = false) {
+            let lat_lng = L.latLng(parseFloat(lat), parseFloat(lng))
+            if (iconOptions) {
+                options.icon = this.createIcon(iconOptions, beautifyIcon)
+            }
+            let marker = L.marker(lat_lng, options)
+            if (popup) {
+                marker.bindPopup(options.popupContent)
+            }
+            return marker
+        }
+        // Example usage:
+        function exampleEventHandler(eventType, e, data, marker) {
+            console.log('Marker clicked:', marker.name);
+            // Handle your event here
+        }
+
+        // Example of adding a star marker
+        const starMarker = createStarMarker(
+            117.00906,  // longitude
+            37.88995,   // latitude
+            '#FF0000',  // color
+            {},         // marker options
+            exampleEventHandler,
+            { point_name: 'Test Point' }
+        );
+        starMarker.addTo(map);
+
+        // Example GeoJSON data
+        var geojsonData = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [107.00906, 38.88995]
+                    },
+                    "properties": {
+                        "name": "Sample Point"
+                    }
+                }
+                // Add more features as needed
+            ]
+        };
+
+        // Add GeoJSON layer to the map
+        // 第一种方式：使用 Canvas 渲染器的 circleMarker
+        L.geoJSON(geojsonData, {
+            pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 18,
+                    fillColor: "#ff4444",
+                    color: "#000",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8,
+                    renderer: L.canvas() // 添加 Canvas 渲染器
+                });
+            },
+            onEachFeature: function (feature, layer) {
+                console.log('layer1', layer)
+                if (feature.properties && feature.properties.name) {
+                    layer.bindPopup(feature.properties.name);
+                }
+            }
+        }).addTo(map);
+
+        // Add GeoJSON layer to the map
+        L.geoJSON(geojsonData, {
+            onEachFeature: function (feature, layer) {
+                console.log('layer2', layer)
+                if (feature.properties && feature.properties.name) {
+                    layer.bindPopup(feature.properties.name);
+                }
+            }
+        }).addTo(map);
+    </script>
+</body>
+
+</html>
