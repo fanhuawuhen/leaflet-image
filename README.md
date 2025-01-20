@@ -90,7 +90,7 @@ Here’s how to use `leaflet-image` in your HTML file:
     <title>Leaflet Image Example</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-image@latest/leaflet-image.js"></script>
+    <script src="./leaflet-image.js"></script>
     <style>
         #map { height: 400px; }
         #images { margin-top: 20px; }
